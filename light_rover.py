@@ -8,7 +8,6 @@ import RPi.GPIO as GPIO
 from neopixel import *
 from PIL import Image, ImageEnhance
 from stepper_motor import Stepper
-
 """
 Paints an light picture of an image by sectioning chunks to display on a led matrix.
 Starts at the upper left hand corner of the image.
@@ -17,146 +16,170 @@ This file is a work in progress. Will refactor once tuned properly.
 """
 
 
-# TODO: move methods into this class
 class LightRover(object):
 
     def __init__(self, left_wheel_stepper, right_wheel_stepper, led_matrix):
-        pass
+        if not left_wheel_stepper or not right_wheel_stepper or not led_matrix:
+            raise ValueError("Please make sure all parameters are defined!")
 
-    def paint_image(self, filename):
-        pass
+        self.s1 = left_wheel_stepper
+        self.s2 = right_wheel_stepper
+        self.matrix = led_matrix
+
+    def paint_image(self, image_file):
+        print "Converting: %s" % image_file
+
+        image = Image.open(image_file)
+        converter = ImageEnhance.Color(image)
+        image = converter.enhance(2)
+        pixels = image.load()
+
+        im_width, im_height = image.size
+
+        chunk_size = int(math.sqrt(self.matrix.numPixels()))
+        num_chunks_w = int(math.ceil(im_width / float(chunk_size)))
+        num_chunks_h = int(math.ceil(im_height / float(chunk_size)))
+
+        for h_chunk in range(num_chunks_h):
+            is_even_row = (h_chunk % 2) == 0
+            w_chunk_range = range(num_chunks_w) if is_even_row else range(num_chunks_w - 1, -1, -1)
+            w_range = range(chunk_size) if is_even_row else range(chunk_size - 1, -1, -1)
+            h_range = range(chunk_size) if is_even_row else range(chunk_size - 1, -1, -1)
+
+            for w_chunk in w_chunk_range:
+                index = 0
+                pixel_buffer = np.zeros((math.pow(chunk_size, 2), 3), dtype=np.int)
+                for h in h_range:
+                    for w in w_range:
+                        try:
+                            pixel_buffer[index][0] = int(pixels[w + chunk_size * w_chunk, h + chunk_size * h_chunk][0])
+                            pixel_buffer[index][1] = int(pixels[w + chunk_size * w_chunk, h + chunk_size * h_chunk][1])
+                            pixel_buffer[index][2] = int(pixels[w + chunk_size * w_chunk, h + chunk_size * h_chunk][2])
+                        except IndexError:
+                            pass  # pixels should be black
+                        index += 1
+
+                # show pixel data, sleep for 1 second then clear
+                self.show_pixels(pixel_buffer.tolist())
+                time.sleep(1)
+                self.clear_matrix()
+
+                # Move to the next space
+                self.move_forward(25)
+
+            # Go to the next row
+            if is_even_row:
+                self.turn_right(35)
+                self.move_forward(35)
+                self.turn_right(35)
+                self.move_forward(25)
+            else:
+                self.turn_left(32)
+                self.move_forward(35)
+                self.turn_left(32)
+                self.move_forward(25)
 
     def paint_vector(self, vector):
         pass
 
+    def move_forward(self, steps):
+        st1 = threading.Thread(target=self.s1.forward, args=(int(steps),))
+        st2 = threading.Thread(target=self.s2.backwards, args=(int(steps),))
+        st1.start()
+        st2.start()
+        st1.join()
+        st2.join()
 
-GPIO.setmode(GPIO.BCM)
+    def move_backward(self, steps):
+        st1 = threading.Thread(target=self.s1.backwards, args=(int(steps),))
+        st2 = threading.Thread(target=self.s2.forward, args=(int(steps),))
+        st1.start()
+        st2.start()
+        st1.join()
+        st2.join()
 
-stepper1 = Stepper(27, 22, 10, 9)
-stepper2 = Stepper(2, 3, 4, 17)
+    def turn_right(self, steps):
+        st1 = threading.Thread(target=self.s1.forward, args=(int(steps),))
+        st2 = threading.Thread(target=self.s2.forward, args=(int(steps),))
+        st1.start()
+        st2.start()
+        st1.join()
+        st2.join()
 
-stepper1.set_rpm(60.0)
-stepper2.set_rpm(60.0)
+    def turn_left(self, steps):
+        st1 = threading.Thread(target=self.s1.backwards, args=(int(steps),))
+        st2 = threading.Thread(target=self.s2.backwards, args=(int(steps),))
+        st1.start()
+        st2.start()
+        st1.join()
+        st2.join()
 
+    def show_pixels(self, values):
+        for pixel in range(len(values)):
+            self.matrix.setPixelColor(pixel, Color(values[pixel][0], values[pixel][1], values[pixel][2]))
+        self.matrix.show()
 
-def signal_handler(signal, frame):
-    stepper1.cleanup()
-    stepper2.cleanup()
-    GPIO.cleanup()
-    sys.exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
-
-
-def move_forward(s1, s2, steps):
-    st1 = threading.Thread(target=s1.forward, args=(int(steps),))
-    st2 = threading.Thread(target=s2.backwards, args=(int(steps),))
-    st1.start()
-    st2.start()
-    st1.join()
-    st2.join()
-
-
-def turn_right(s1, s2, steps):
-    st1 = threading.Thread(target=s1.forward, args=(int(steps),))
-    st2 = threading.Thread(target=s2.forward, args=(int(steps),))
-    st1.start()
-    st2.start()
-    st1.join()
-    st2.join()
-
-
-def turn_left(s1, s2, steps):
-    st1 = threading.Thread(target=s1.backwards, args=(int(steps),))
-    st2 = threading.Thread(target=s2.backwards, args=(int(steps),))
-    st1.start()
-    st2.start()
-    st1.join()
-    st2.join()
+    def clear_matrix(self):
+        for p in range(self.matrix.numPixels()):
+            self.matrix.setPixelColor(p, Color(0, 0, 0))
+        self.matrix.show()
 
 
-def create_strip(leds):
+# #### HELPER METHODS #### #
+
+def create_strip(leds, led_pin=18, led_freq_hz=800000, led_dma=5, led_brightness=10, led_invert=False):
+    """
+    :param leds:
+    :param led_pin:
+    :param led_freq_hz:
+    :param led_dma:
+    :param led_brightness:
+    :param led_invert:
+    :return:
+
     # LED strip configuration:
     LED_PIN = 18  # GPIO pin connected to the pixels (must support PWM!).
     LED_FREQ_HZ = 800000  # LED signal frequency in hertz (usually 800khz)
     LED_DMA = 5  # DMA channel to use for generating signal (try 5)
     LED_BRIGHTNESS = 10  # Set to 0 for darkest and 255 for brightest
     LED_INVERT = False  # True to invert the signal (when using NPN transistor level shift)
+    """
 
-    return Adafruit_NeoPixel(leds, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS)
-
-
-def clear_strip(strip):
-    for p in range(strip.numPixels()):
-        strip.setPixelColor(p, Color(0, 0, 0))
-    strip.show()
+    return Adafruit_NeoPixel(leds, led_pin, led_freq_hz, led_dma, led_invert, led_brightness)
 
 
-if len(sys.argv) < 2:
-    print "No input image given. Make sure you specify a valid input image."
-    exit(0)
+def cleanup():
+    stepper1.cleanup()
+    stepper2.cleanup()
+    GPIO.cleanup()
+    sys.exit(0)
 
-imageFile = sys.argv[1]
 
-print "Converting: %s" % imageFile
+def signal_handler(signal, frame):
+    cleanup()
 
-image = Image.open(imageFile)
-converter = ImageEnhance.Color(image)
-image = converter.enhance(2)
-pixels = image.load()
 
-chunkSize = 8
-strip = create_strip(int(math.pow(chunkSize, 2)))
-strip.begin()
+if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal_handler)
 
-width, height = image.size
+    if len(sys.argv) < 2:
+        print "No input image given. Make sure you specify a valid input image."
+        exit(0)
 
-numChunksW = int(math.ceil(width/float(chunkSize)))
-numChunksH = int(math.ceil(height/float(chunkSize)))
+    imageFile = sys.argv[1]
 
-for hChunk in range(numChunksH):
-    wChunkRange = range(numChunksW)
-    wRange = range(chunkSize)
-    hRange = range(chunkSize)
-    turnRight = True
-    if hChunk % 2:  # odd (backwards)
-        wChunkRange = range(numChunksW - 1, -1, -1)
-        wRange = range(chunkSize - 1, -1, -1)
-        hRange = range(chunkSize - 1, -1, -1)
-        turnRight = False
+    GPIO.setmode(GPIO.BCM)
 
-    for wChunk in wChunkRange:
-        pixelBuffer = np.zeros((math.pow(chunkSize, 2), 3), dtype=np.int)
-        index = 0
-        for h in hRange:
-            for w in wRange:
-                try:
-                    pixelBuffer[index][0] = int(pixels[w + chunkSize * wChunk, h + chunkSize * hChunk][0])
-                    pixelBuffer[index][1] = int(pixels[w + chunkSize * wChunk, h + chunkSize * hChunk][1])
-                    pixelBuffer[index][2] = int(pixels[w + chunkSize * wChunk, h + chunkSize * hChunk][2])
-                except IndexError:
-                    pass  # pixels should be black
-                index += 1
+    stepper1 = Stepper(27, 22, 10, 9)
+    stepper2 = Stepper(2, 3, 4, 17)
 
-        pBL = pixelBuffer.tolist()
-        for pixel in range(len(pBL)):
-            strip.setPixelColor(pixel, Color(pBL[pixel][0], pBL[pixel][1], pBL[pixel][2]))
+    stepper1.set_rpm(60.0)
+    stepper2.set_rpm(60.0)
 
-        strip.show()
-        time.sleep(1)
-        clear_strip(strip)
+    led_matrix = create_strip(64)
+    led_matrix.begin()
 
-        # Move to the next space
-        move_forward(stepper1, stepper2, 25)
+    rover = LightRover(stepper1, stepper2, led_matrix)
+    rover.paint_image(imageFile)
+    cleanup()
 
-    # Go to the next row
-    if turnRight:
-        turn_right(stepper1, stepper2, 35)
-        move_forward(stepper1, stepper2, 35)
-        turn_right(stepper1, stepper2, 35)
-        move_forward(stepper1, stepper2, 25)
-    else:
-        turn_left(stepper1, stepper2, 32)
-        move_forward(stepper1, stepper2, 35)
-        turn_left(stepper1, stepper2, 32)
-        move_forward(stepper1, stepper2, 25)
