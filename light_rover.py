@@ -5,6 +5,7 @@ import numpy as np
 import threading
 import signal
 import RPi.GPIO as GPIO
+from vector_drawings import *
 from neopixel import *
 from PIL import Image, ImageEnhance
 from stepper_motor import Stepper
@@ -79,8 +80,25 @@ class LightRover(object):
                 self.turn_left(32)
                 self.move_forward(25)
 
-    def paint_vector(self, vector):
-        pass
+    def paint_vector(self, vector_arr):
+        """
+        :param vector_arr: array of light vector objects
+        :return:
+        """
+        degree_step_coefficient = 0.4
+
+        for vector in vector_arr:
+            if not isinstance(vector, LightVector):
+                raise ValueError("Vector array must contain only light vectors!")
+
+            self.show_pixels(vector.pixel_data)
+            self.move_forward(vector.steps)
+            self.clear_matrix()
+
+            if vector.angle < 0:
+                self.turn_left(abs(degree_step_coefficient*vector.angle))
+            else:
+                self.turn_right(abs(degree_step_coefficient * vector.angle))
 
     def move_forward(self, steps):
         st1 = threading.Thread(target=self.s1.forward, args=(int(steps),))
