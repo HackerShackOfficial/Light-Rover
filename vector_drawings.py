@@ -11,9 +11,18 @@ class LightVector(object):
         self.pixel_data = pixel_data
 
 
-rectangle = [LightVector(300, 90, [[0, 255, 0]]),
-             LightVector(200, 90, [[255, 255, 0]]),
-             LightVector(300, 90, [[255, 0, 255]]),
-             LightVector(200, 90, [[0, 0, 255]])]
+rectangle = [LightVector(1000, 90, [[0, 255, 0]]),
+             LightVector(800, 90, [[255, 255, 0]]),
+             LightVector(1000, 90, [[255, 0, 255]]),
+             LightVector(800, 90, [[0, 0, 255]])]
 
-star = []
+star = [LightVector(600, -72, [[0, 255, 0]]),
+        LightVector(600, 144, [[255, 255, 0]]),
+        LightVector(600, -72, [[255, 0, 255]]),
+        LightVector(600, 144, [[0, 0, 255]]),
+        LightVector(600, -72, [[0, 0, 255]]),
+        LightVector(600, 144, [[0, 255, 0]]),
+        LightVector(600, -72, [[255, 255, 0]]),
+        LightVector(600, 144, [[255, 0, 255]]),
+        LightVector(600, -72, [[0, 0, 255]]),
+        LightVector(600, 144, [[0, 0, 255]])]

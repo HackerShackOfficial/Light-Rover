@@ -26,6 +26,8 @@ class LightRover(object):
         self.s1 = left_wheel_stepper
         self.s2 = right_wheel_stepper
         self.matrix = led_matrix
+        # self.degree_step_coefficient = 1.49
+        self.degree_step_coefficient = 1.45
 
     def paint_image(self, image_file):
         print "Converting: %s" % image_file
@@ -63,70 +65,94 @@ class LightRover(object):
                 # show pixel data, sleep for 1 second then clear
                 self.show_pixels(pixel_buffer.tolist())
                 time.sleep(1)
-                self.clear_matrix()
+                LightRover.clear_matrix(self.matrix)
 
                 # Move to the next space
-                self.move_forward(25)
+                self.move_forward(100)
 
             # Go to the next row
             if is_even_row:
-                self.turn_right(35)
-                self.move_forward(35)
-                self.turn_right(35)
-                self.move_forward(25)
+                self.turn_degrees_right(90)
+                self.move_forward(100)
+                self.turn_degrees_right(90)
+                self.move_forward(100)
             else:
-                self.turn_left(32)
-                self.move_forward(35)
-                self.turn_left(32)
-                self.move_forward(25)
+                self.turn_degrees_left(90)
+                self.move_forward(100)
+                self.turn_degrees_left(90)
+                self.move_forward(100)
 
-    def paint_vector(self, vector_arr):
+    def paint_vector(self, vector_arr, single_value_affects_pixels=None):
         """
         :param vector_arr: array of light vector objects
+        :param single_value_affects_pixels: array of pixel indexes to change if one value RGB value is provided
         :return:
         """
-        degree_step_coefficient = 0.4
 
         for vector in vector_arr:
             if not isinstance(vector, LightVector):
                 raise ValueError("Vector array must contain only light vectors!")
 
-            self.show_pixels(vector.pixel_data)
+            if len(vector.pixel_data) == 1 and single_value_affects_pixels is not None:
+                self.show_pixels(self.__create_pixel_array(vector.pixel_data[0], single_value_affects_pixels))
+            else:
+                self.show_pixels(vector.pixel_data)
+
             self.move_forward(vector.steps)
-            self.clear_matrix()
+            LightRover.clear_matrix(self.matrix)
 
             if vector.angle < 0:
-                self.turn_left(abs(degree_step_coefficient*vector.angle))
+                self.turn_degrees_left(vector.angle)
             else:
-                self.turn_right(abs(degree_step_coefficient * vector.angle))
+                self.turn_degrees_right(vector.angle)
+
+    def __create_pixel_array(self, value, affected_values):
+        pixel_arr = []
+
+        if self.matrix is None:
+            return []
+
+        for pixel in range(self.matrix.numPixels):
+            pixel_arr.append([0, 0, 0])
+
+        for pixel in range(len(affected_values)):
+            pixel_arr[pixel] = value
+
+        return pixel_arr
 
     def move_forward(self, steps):
-        st1 = threading.Thread(target=self.s1.forward, args=(int(steps),))
-        st2 = threading.Thread(target=self.s2.backwards, args=(int(steps),))
+        st1 = threading.Thread(target=self.s1.microstep_forward, args=(int(steps),))
+        st2 = threading.Thread(target=self.s2.microstep_backward, args=(int(steps),))
         st1.start()
         st2.start()
         st1.join()
         st2.join()
 
     def move_backward(self, steps):
-        st1 = threading.Thread(target=self.s1.backwards, args=(int(steps),))
-        st2 = threading.Thread(target=self.s2.forward, args=(int(steps),))
+        st1 = threading.Thread(target=self.s1.microstep_backward, args=(int(steps),))
+        st2 = threading.Thread(target=self.s2.microstep_forward, args=(int(steps),))
         st1.start()
         st2.start()
         st1.join()
         st2.join()
+
+    def turn_degrees_right(self, angle):
+        self.turn_right(abs(self.degree_step_coefficient * angle))
 
     def turn_right(self, steps):
-        st1 = threading.Thread(target=self.s1.forward, args=(int(steps),))
-        st2 = threading.Thread(target=self.s2.forward, args=(int(steps),))
+        st1 = threading.Thread(target=self.s1.microstep_forward, args=(int(steps),))
+        st2 = threading.Thread(target=self.s2.microstep_forward, args=(int(steps),))
         st1.start()
         st2.start()
         st1.join()
         st2.join()
 
+    def turn_degrees_left(self, angle):
+        self.turn_left(abs(self.degree_step_coefficient * angle))
+
     def turn_left(self, steps):
-        st1 = threading.Thread(target=self.s1.backwards, args=(int(steps),))
-        st2 = threading.Thread(target=self.s2.backwards, args=(int(steps),))
+        st1 = threading.Thread(target=self.s1.microstep_backward, args=(int(steps),))
+        st2 = threading.Thread(target=self.s2.microstep_backward, args=(int(steps),))
         st1.start()
         st2.start()
         st1.join()
@@ -137,10 +163,11 @@ class LightRover(object):
             self.matrix.setPixelColor(pixel, Color(values[pixel][0], values[pixel][1], values[pixel][2]))
         self.matrix.show()
 
-    def clear_matrix(self):
-        for p in range(self.matrix.numPixels()):
-            self.matrix.setPixelColor(p, Color(0, 0, 0))
-        self.matrix.show()
+    @staticmethod
+    def clear_matrix(matrix):
+        for p in range(matrix.numPixels()):
+            matrix.setPixelColor(p, Color(0, 0, 0))
+        matrix.show()
 
 
 # #### HELPER METHODS #### #
@@ -167,6 +194,7 @@ def create_strip(leds, led_pin=18, led_freq_hz=800000, led_dma=5, led_brightness
 
 
 def cleanup():
+    LightRover.clear_matrix(led_matrix)
     stepper1.cleanup()
     stepper2.cleanup()
     GPIO.cleanup()
@@ -188,8 +216,8 @@ if __name__ == "__main__":
 
     GPIO.setmode(GPIO.BCM)
 
-    stepper1 = Stepper(27, 22, 10, 9)
-    stepper2 = Stepper(2, 3, 4, 17)
+    stepper1 = Stepper(2, 3, 4, 17)
+    stepper2 = Stepper(27, 22, 10, 9)
 
     stepper1.set_rpm(60.0)
     stepper2.set_rpm(60.0)
@@ -198,6 +226,7 @@ if __name__ == "__main__":
     led_matrix.begin()
 
     rover = LightRover(stepper1, stepper2, led_matrix)
-    rover.paint_image(imageFile)
+    # rover.paint_image(imageFile)
+    rover.paint_vector(star)
     cleanup()
 

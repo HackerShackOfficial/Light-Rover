@@ -41,7 +41,7 @@ class Stepper(object):
         if hold_position is False:
             self.set_step(0, 0, 0, 0)
 
-    def backwards(self, steps, delay=None, rpm=None, hold_position=True):
+    def backward(self, steps, delay=None, rpm=None, hold_position=True):
         self.current_step = 0
         d = delay if delay else self.get_delay(rpm)
 
@@ -60,6 +60,12 @@ class Stepper(object):
 
     def set_rpm(self, rpm):
         self.rpm = rpm
+
+    def microstep_forward(self, steps, delay=None, rpm=None, hold_position=True):
+        self.microstep(steps, delay, rpm, hold_position)
+
+    def microstep_backward(self, steps, delay=None, rpm=None, hold_position=True):
+        self.microstep(-steps, delay, rpm, hold_position)
 
     def microstep(self, steps, delay=None, rpm=None, hold_position=True):
         d = delay if delay else self.get_delay(rpm)
@@ -85,13 +91,13 @@ class Stepper(object):
 
     def step_sequence(self, num):
         if num == 0:
-            self.set_step(1, 0, 0, 1)
-        elif num == 1:
-            self.set_step(0, 1, 0, 1)
-        elif num == 2:
-            self.set_step(0, 1, 1, 0)
-        else:
             self.set_step(1, 0, 1, 0)
+        elif num == 1:
+            self.set_step(0, 1, 1, 0)
+        elif num == 2:
+            self.set_step(0, 1, 0, 1)
+        else:
+            self.set_step(1, 0, 0, 1)
 
     def set_step(self, w1, w2, w3, w4):
         GPIO.output(self.coil_A_1_pin, w1)
