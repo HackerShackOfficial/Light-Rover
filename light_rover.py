@@ -68,21 +68,21 @@ class LightRover(object):
                 LightRover.clear_matrix(self.matrix)
 
                 # Move to the next space
-                self.move_forward(100)
+                self.move_forward(90)
 
             # Go to the next row
             if is_even_row:
                 self.turn_degrees_right(90)
-                self.move_forward(100)
+                self.move_forward(125)
                 self.turn_degrees_right(90)
-                self.move_forward(100)
+                self.move_forward(90)
             else:
                 self.turn_degrees_left(90)
-                self.move_forward(100)
+                self.move_forward(125)
                 self.turn_degrees_left(90)
-                self.move_forward(100)
+                self.move_forward(90)
 
-    def paint_vector(self, vector_arr, single_value_affects_pixels=None):
+    def paint_vector(self, vector_arr, single_value_affects_pixels=None, has_pos = False):
         """
         :param vector_arr: array of light vector objects
         :param single_value_affects_pixels: array of pixel indexes to change if one value RGB value is provided
@@ -93,8 +93,12 @@ class LightRover(object):
             if not isinstance(vector, LightVector):
                 raise ValueError("Vector array must contain only light vectors!")
 
-            if len(vector.pixel_data) == 1 and single_value_affects_pixels is not None:
-                self.show_pixels(self.__create_pixel_array(vector.pixel_data[0], single_value_affects_pixels))
+            if has_pos is True:
+                for pixel in vector.pixel_data:
+                    self.matrix.setPixelColor(pixel.pos, pixel.r, pixel.g, pixel.b)
+            elif len(vector.pixel_data) == 1 and single_value_affects_pixels is not None:
+                pixels = self.__create_pixel_array(vector.pixel_data[0], single_value_affects_pixels)
+                self.show_pixels(pixels)
             else:
                 self.show_pixels(vector.pixel_data)
 
@@ -112,10 +116,10 @@ class LightRover(object):
         if self.matrix is None:
             return []
 
-        for pixel in range(self.matrix.numPixels):
+        for pixel in range(self.matrix.numPixels()):
             pixel_arr.append([0, 0, 0])
 
-        for pixel in range(len(affected_values)):
+        for pixel in affected_values:
             pixel_arr[pixel] = value
 
         return pixel_arr
@@ -160,7 +164,7 @@ class LightRover(object):
 
     def show_pixels(self, values):
         for pixel in range(len(values)):
-            self.matrix.setPixelColor(pixel, Color(values[pixel][0], values[pixel][1], values[pixel][2]))
+            self.matrix.setPixelColor(pixel, Color(values[pixel][1], values[pixel][0], values[pixel][2]))
         self.matrix.show()
 
     @staticmethod
@@ -226,7 +230,7 @@ if __name__ == "__main__":
     led_matrix.begin()
 
     rover = LightRover(stepper1, stepper2, led_matrix)
-    # rover.paint_image(imageFile)
-    rover.paint_vector(star)
+    rover.paint_image(imageFile)
+    #rover.paint_vector(dog, single_value_affects_pixels=[27,28,35,36])
     cleanup()
 
