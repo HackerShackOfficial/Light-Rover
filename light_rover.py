@@ -240,7 +240,7 @@ if __name__ == "__main__":
     stepper1.set_rpm(60.0)
     stepper2.set_rpm(60.0)
 
-    led_matrix = create_strip(64)
+    led_matrix = create_strip(64, led_pin=18)
     led_matrix.begin()
 
     rover = LightRover(stepper1, stepper2, led_matrix)
