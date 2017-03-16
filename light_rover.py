@@ -13,7 +13,6 @@ from stepper_motor import Stepper
 Paints an light picture of an image by sectioning chunks to display on a led matrix.
 Starts at the upper left hand corner of the image.
 
-This file is a work in progress. Will refactor once tuned properly.
 """
 
 
@@ -26,10 +25,14 @@ class LightRover(object):
         self.s1 = left_wheel_stepper
         self.s2 = right_wheel_stepper
         self.matrix = led_matrix
-        # self.degree_step_coefficient = 1.49
         self.degree_step_coefficient = 1.45
 
     def paint_image(self, image_file):
+        """
+        Paints the image by traversing from the upper left corner to the bottom right/left
+        :param image_file:
+        :return:
+        """
         print "Converting: %s" % image_file
 
         image = Image.open(image_file)
@@ -70,7 +73,7 @@ class LightRover(object):
                 # Move to the next space
                 self.move_forward(90)
 
-            # Go to the next row
+            # Go to the next row Todo: parameterize
             if is_even_row:
                 self.turn_degrees_right(90)
                 self.move_forward(125)
@@ -82,10 +85,11 @@ class LightRover(object):
                 self.turn_degrees_left(90)
                 self.move_forward(90)
 
-    def paint_vector(self, vector_arr, single_value_affects_pixels=None, has_pos = False):
+    def paint_vector(self, vector_arr, single_value_affects_pixels=None, pixel_has_pos=False):
         """
         :param vector_arr: array of light vector objects
         :param single_value_affects_pixels: array of pixel indexes to change if one value RGB value is provided
+        :param pixel_has_pos: True if using LightPixels instead of a 2D array of values
         :return:
         """
 
@@ -93,7 +97,7 @@ class LightRover(object):
             if not isinstance(vector, LightVector):
                 raise ValueError("Vector array must contain only light vectors!")
 
-            if has_pos is True:
+            if pixel_has_pos is True:
                 for pixel in vector.pixel_data:
                     self.matrix.setPixelColor(pixel.pos, pixel.r, pixel.g, pixel.b)
             elif len(vector.pixel_data) == 1 and single_value_affects_pixels is not None:
@@ -111,6 +115,13 @@ class LightRover(object):
                 self.turn_degrees_right(vector.angle)
 
     def __create_pixel_array(self, value, affected_values):
+        """
+        Creates an array of pixel which are the size of the matrix. 'affected_values' indexes are given
+        the color of 'value'
+        :param value:
+        :param affected_values:
+        :return:
+        """
         pixel_arr = []
 
         if self.matrix is None:
@@ -163,7 +174,12 @@ class LightRover(object):
         st2.join()
 
     def show_pixels(self, values):
+        """
+        :param values: an array of values to display on the led matrix
+        :return:
+        """
         for pixel in range(len(values)):
+            # r and g are swapped for some reason
             self.matrix.setPixelColor(pixel, Color(values[pixel][1], values[pixel][0], values[pixel][2]))
         self.matrix.show()
 
@@ -212,11 +228,9 @@ def signal_handler(signal, frame):
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
 
-    if len(sys.argv) < 2:
-        print "No input image given. Make sure you specify a valid input image."
-        exit(0)
-
-    imageFile = sys.argv[1]
+    imageFile = None
+    if len(sys.argv) >= 2:
+        imageFile = sys.argv[1]
 
     GPIO.setmode(GPIO.BCM)
 
@@ -230,7 +244,18 @@ if __name__ == "__main__":
     led_matrix.begin()
 
     rover = LightRover(stepper1, stepper2, led_matrix)
-    rover.paint_image(imageFile)
-    #rover.paint_vector(dog, single_value_affects_pixels=[27,28,35,36])
+
+    # Image
+    '''
+    if imageFile:
+        rover.paint_image(imageFile)
+    else:
+        print "No image file provided!"
+        exit(1)
+    '''
+
+    # Vector
+    rover.paint_vector(dog, single_value_affects_pixels=[27, 28, 35, 36])
+
     cleanup()
 
